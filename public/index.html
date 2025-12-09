@@ -4,13 +4,14 @@
   <meta charset="UTF-8">
   <title>HeartWins · Колесо осознанности</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- VK bridge (только если запущено как VK Mini App) -->
+  <!-- VK bridge (если запущено как VK Mini App) -->
   <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
-  <!-- Telegram WebApp SDK (если в Mini App) -->
+  <!-- Telegram WebApp SDK (если Mini App) -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<!-- Фоновой узел -->
 <canvas id="heartwins"></canvas>
 
 <!-- Водяной знак HEARTWINS -->
@@ -21,8 +22,8 @@
   <header class="app-header">
     <div class="brand">
       <div class="brand-logo">
-        <!-- сюда положи свой файл с золотым узлом -->
-        <img src="heartwins-knot.png" alt="HeartWins logo">
+        <!-- маленький узел-анимация -->
+        <canvas id="logoCanvas"></canvas>
       </div>
       <div class="brand-text">
         <div class="brand-title">HeartWins</div>
@@ -38,7 +39,7 @@
   <main class="app-main">
     <section id="mainSection" class="panel main-panel">
       <div class="main-grid">
-        <!-- Блок профиля + Кликер в центре -->
+        <!-- Профиль + кликер в центре -->
         <div class="column">
           <div class="panel-card core-card">
             <div class="panel-card-header">
@@ -67,10 +68,11 @@
               <div class="clicker-top">
                 <div class="clicker-label">Кликер кармы</div>
                 <div class="clicker-sub">
-                  Сначала — пустота. Коснись, чтобы пробудить облако.
+                  Сначала — пустота. Коснись, чтобы пробудить узел.
                 </div>
               </div>
               <button id="karmaClickBtn" class="clicker-btn">
+                <!-- узел внутри кнопки -->
                 <canvas id="clickerCanvas"></canvas>
                 <div class="clicker-label-inner">
                   👆 Коснуться<br><span>+1 карма</span>
@@ -80,13 +82,11 @@
           </div>
         </div>
 
-        <!-- Расширенная часть: колесо + викторина (открывается с 10 кармы) -->
+        <!-- Колесо + викторина (после 10 кармы) -->
         <div class="column advanced-wrapper" id="advancedSection">
           <div class="panel-card">
             <h2>🎡 Колесо</h2>
-            <p class="muted small">
-              Спин — и смотри, куда течёт твоя карма.
-            </p>
+            <p class="muted small">Спин — и смотри, куда течёт твоя карма.</p>
 
             <div class="wheel-layout">
               <div class="wheel-wrap">
