@@ -4,8 +4,10 @@
   <meta charset="UTF-8">
   <title>HeartWins · Колесо осознанности</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- VK bridge (подключится, если в VK Mini App) -->
+  <!-- VK bridge (только если запущено как VK Mini App) -->
   <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
+  <!-- Telegram WebApp SDK (если в Mini App) -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -35,8 +37,9 @@
   <main class="app-main">
     <section id="mainSection" class="panel main-panel">
       <div class="main-grid">
+        <!-- Блок профиля + Кликер в центре -->
         <div class="column">
-          <div class="panel-card">
+          <div class="panel-card core-card">
             <div class="panel-card-header">
               <div>
                 <h2 id="profileGreeting">Привет!</h2>
@@ -62,19 +65,24 @@
             <div class="clicker">
               <div class="clicker-top">
                 <div class="clicker-label">Кликер кармы</div>
-                <div class="clicker-sub">Один клик — маленький жест внимания.</div>
+                <div class="clicker-sub">
+                  Сначала — пустота. Коснись, чтобы пробудить облако.
+                </div>
               </div>
               <button id="karmaClickBtn" class="clicker-btn">
-                👆 Клик-карма<br><span>+1 карма</span>
+                👆 Коснуться<br><span>+1 карма</span>
               </button>
             </div>
           </div>
         </div>
 
-        <div class="column">
+        <!-- Расширенная часть: колесо + викторина (открывается с 10 кармы) -->
+        <div class="column advanced-wrapper" id="advancedSection">
           <div class="panel-card">
             <h2>🎡 Колесо</h2>
-            <p class="muted small">Спин — и смотри, куда течёт твоя карма.</p>
+            <p class="muted small">
+              Спин — и смотри, куда течёт твоя карма.
+            </p>
 
             <div class="wheel-layout">
               <div class="wheel-wrap">
@@ -97,10 +105,12 @@
 
           <div class="panel-card">
             <h2>📚 Викторина</h2>
-            <p class="muted small">Выбери направление, которое ближе к осознанности.</p>
+            <p class="muted small">
+              Выбери направление, которое ближе к осознанности.
+            </p>
 
             <div id="quizQuote" class="sutra-box quiz-quote">
-              Нажми «Новый вопрос», чтобы начать.
+              Нажми «Новый вопрос», когда будешь готов.
             </div>
             <p id="quizQuestion" class="quiz-question-text"></p>
             <div id="quizOptions" class="quiz-options"></div>
@@ -112,10 +122,9 @@
         </div>
       </div>
 
-      <!-- Незаметный для обычных пользователей блок гостевого режима -->
       <div class="dev-hint">
         <span class="muted small">
-          standalone режим · данные гостя хранятся локально в этом браузере
+          после ~10 кликов кликера откроются колесо и викторина
         </span>
       </div>
     </section>
