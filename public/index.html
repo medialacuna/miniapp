@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>HeartWins · Колесо осознанности</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- VK bridge (подключится, если в VK Mini App) -->
+  <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="heartwins"></canvas>
+
+<!-- Водяной знак HEARTWINS -->
+<div class="hw-label">HEARTWINS</div>
+<div class="hw-signature">Lyoubov Touinova™</div>
+
+<div class="ui-shell">
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-logo">
+        <span>❤</span>
+      </div>
+      <div class="brand-text">
+        <div class="brand-title">HeartWins</div>
+        <div class="brand-subtitle">awareness miniapp</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="header-pill" id="platformLabel">standalone</span>
+      <button id="logoutBtn" class="btn ghost small" style="display:none;">Сброс гостя</button>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <section id="mainSection" class="panel main-panel">
+      <div class="main-grid">
+        <div class="column">
+          <div class="panel-card">
+            <div class="panel-card-header">
+              <div>
+                <h2 id="profileGreeting">Привет!</h2>
+                <div id="profileMeta" class="muted small"></div>
+              </div>
+            </div>
+
+            <div class="stats-row">
+              <div class="stat-chip">
+                <div class="stat-label">Карма</div>
+                <div id="statKarma" class="stat-value">0</div>
+              </div>
+              <div class="stat-chip">
+                <div class="stat-label">Осознанность</div>
+                <div id="statAwareness" class="stat-value">0</div>
+              </div>
+              <div class="stat-chip">
+                <div class="stat-label">Верных ответов</div>
+                <div id="statQuiz" class="stat-value">0</div>
+              </div>
+            </div>
+
+            <div class="clicker">
+              <div class="clicker-top">
+                <div class="clicker-label">Кликер кармы</div>
+                <div class="clicker-sub">Один клик — маленький жест внимания.</div>
+              </div>
+              <button id="karmaClickBtn" class="clicker-btn">
+                👆 Клик-карма<br><span>+1 карма</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="column">
+          <div class="panel-card">
+            <h2>🎡 Колесо</h2>
+            <p class="muted small">Спин — и смотри, куда течёт твоя карма.</p>
+
+            <div class="wheel-layout">
+              <div class="wheel-wrap">
+                <div class="wheel" id="wheelVisual">
+                  <div class="wheel-pointer"></div>
+                  <div class="wheel-center">
+                    Вдох<br>Выдох<br><span>наблюдай</span>
+                  </div>
+                </div>
+              </div>
+              <div class="wheel-side">
+                <button id="spinBtn" class="btn primary full">🔄 Крутить колесо</button>
+                <div id="wheelResult" class="wheel-result"></div>
+                <div id="sutraBox" class="sutra-box">
+                  Сутра появится после спина.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel-card">
+            <h2>📚 Викторина</h2>
+            <p class="muted small">Выбери направление, которое ближе к осознанности.</p>
+
+            <div id="quizQuote" class="sutra-box quiz-quote">
+              Нажми «Новый вопрос», чтобы начать.
+            </div>
+            <p id="quizQuestion" class="quiz-question-text"></p>
+            <div id="quizOptions" class="quiz-options"></div>
+            <div class="quiz-controls">
+              <button id="newQuestionBtn" class="btn ghost small">✨ Новый вопрос</button>
+            </div>
+            <div id="quizStatus" class="quiz-status"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Незаметный для обычных пользователей блок гостевого режима -->
+      <div class="dev-hint">
+        <span class="muted small">
+          standalone режим · данные гостя хранятся локально в этом браузере
+        </span>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
