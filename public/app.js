@@ -6,8 +6,11 @@ let wheelSpinning = false;
 let currentQuiz = null;
 let quizAnswered = false;
 
-// "Энергия" для облака частиц
+// "Энергия" для фонового облака
 window.hwEnergy = 0;
+// "Энергия" для облака в кликере
+let clickerEnergy = 0;
+let lastTouch = { x: 0.5, y: 0.5 };
 
 const SUTRAS = [
   "Замечать свои автоматические реакции — уже первый шаг к свободе.",
@@ -108,6 +111,7 @@ const newQuestionBtn = document.getElementById("newQuestionBtn");
 const logoutBtn = document.getElementById("logoutBtn");
 const platformLabel = document.getElementById("platformLabel");
 const advancedSection = document.getElementById("advancedSection");
+const clickerCanvas = document.getElementById("clickerCanvas");
 
 /* HELPERS */
 
@@ -275,13 +279,27 @@ async function guestAutoLogin() {
 
   let nickname = localStorage.getItem("hw_guest_name") || "гость";
 
-  const data = await api("/api/auth/guest", {
-    method: "POST",
-    body: { guestId, nickname }
-  });
-  setToken(data.token);
-  currentUser = data.user;
-  updateUserUI();
+  try {
+    const data = await api("/api/auth/guest", {
+      method: "POST",
+      body: { guestId, nickname }
+    });
+    setToken(data.token);
+    currentUser = data.user;
+    updateUserUI();
+  } catch (e) {
+    console.error("guest auth failed, using local user only", e);
+    // локальный пользователь, если бэкенд вдруг недоступен
+    currentUser = {
+      id: guestId,
+      guestId,
+      guestName: nickname,
+      karma: 0,
+      awareness: 0,
+      quizCorrect: 0
+    };
+    updateUserUI();
+  }
 }
 
 if (logoutBtn) {
@@ -333,27 +351,41 @@ if (logoutBtn) {
 /* Кликер кармы */
 
 if (karmaClickBtn) {
-  karmaClickBtn.addEventListener("click", async () => {
-    if (!currentUser) return;
+  const clickerContainer = karmaClickBtn.closest(".panel-card") || karmaClickBtn.parentElement;
+
+  karmaClickBtn.addEventListener("click", async (ev) => {
+    if (!currentUser) {
+      // если по какой-то причине ещё не успели авторизоваться
+      return;
+    }
+
+    // координаты внутри кнопки (0..1)
+    const rect = karmaClickBtn.getBoundingClientRect();
+    const x = (ev.clientX - rect.left) / rect.width;
+    const y = (ev.clientY - rect.top) / rect.height;
+    lastTouch = { x, y };
+
     try {
       const data = await api("/api/actions/karma-click", { method: "POST" });
       currentUser.karma = data.karma;
       updateUserUI();
-
-      // оживляем фон
-      window.hwEnergy = Math.min(1, (window.hwEnergy || 0) + 0.08);
-      document.body.classList.add("bg-awake");
-
-      karmaClickBtn.style.transform = "scale(0.97)";
-      setTimeout(() => {
-        karmaClickBtn.style.transform = "";
-      }, 80);
-
-      const container = karmaClickBtn.closest(".panel-card") || karmaClickBtn.parentElement;
-      spawnClickParticles(container, 7);
     } catch (e) {
       console.error(e);
     }
+
+    // оживляем фон
+    window.hwEnergy = Math.min(1, (window.hwEnergy || 0) + 0.08);
+    document.body.classList.add("bg-awake");
+
+    // энергия кликера
+    clickerEnergy = Math.min(1, clickerEnergy + 0.2);
+
+    karmaClickBtn.style.transform = "scale(0.97)";
+    setTimeout(() => {
+      karmaClickBtn.style.transform = "";
+    }, 80);
+
+    spawnClickParticles(clickerContainer, 7);
   });
 }
 
@@ -362,6 +394,12 @@ if (karmaClickBtn) {
 if (spinBtn) {
   spinBtn.addEventListener("click", async () => {
     if (!currentUser || wheelSpinning) return;
+    // не даём крутить колесо до 10 кармы
+    if ((currentUser.karma ?? 0) < 10) {
+      wheelResultEl.textContent = "Сначала набери немного кармы кликером.";
+      return;
+    }
+
     wheelSpinning = true;
     wheelResultEl.textContent = "Колесо крутится...";
 
@@ -440,6 +478,11 @@ function renderQuiz(questionObj) {
 
 if (newQuestionBtn) {
   newQuestionBtn.addEventListener("click", () => {
+    if (!currentUser || (currentUser.karma ?? 0) < 10) {
+      quizStatusEl.textContent = "Сначала наработай немного кармы кликером.";
+      quizStatusEl.style.color = "#ffd48f";
+      return;
+    }
     const q = QUIZ_QUESTIONS[Math.floor(Math.random() * QUIZ_QUESTIONS.length)];
     currentQuiz = q;
     renderQuiz(q);
@@ -486,7 +529,7 @@ if (newQuestionBtn) {
   }
 
   const particles = [];
-  const PARTICLE_COUNT = 450;
+  const PARTICLE_COUNT = 350;
 
   function createParticle() {
     return {
@@ -617,6 +660,101 @@ if (newQuestionBtn) {
       ctx.beginPath();
       ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
       ctx.arc(xF, yF, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    requestAnimationFrame(animate);
+  }
+
+  requestAnimationFrame(animate);
+})();
+
+/* Облако точек прямо внутри кнопки кликера */
+
+(function () {
+  if (!clickerCanvas) return;
+  const ctx = clickerCanvas.getContext("2d");
+
+  let width = 0;
+  let height = 0;
+
+  function resize() {
+    const rect = clickerCanvas.getBoundingClientRect();
+    width = rect.width || 320;
+    height = rect.height || 140;
+    clickerCanvas.width = width * window.devicePixelRatio;
+    clickerCanvas.height = height * window.devicePixelRatio;
+    ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
+  }
+  resize();
+  window.addEventListener("resize", resize);
+
+  function heartPointBase(t, scale, cx, cy) {
+    let x = 16 * Math.pow(Math.sin(t), 3);
+    let y = 13 * Math.cos(t)
+          - 5 * Math.cos(2 * t)
+          - 2 * Math.cos(3 * t)
+          - Math.cos(4 * t);
+    return {
+      x: x * scale + cx,
+      y: -y * scale + cy
+    };
+  }
+
+  const particles = [];
+  const COUNT = 260;
+
+  function createParticle() {
+    return {
+      t: Math.random() * Math.PI * 2,
+      speed: 0.00015 + Math.random() * 0.00025,
+      size: 0.4 + Math.random() * 0.6,
+      life: Math.random()
+    };
+  }
+
+  for (let i = 0; i < COUNT; i++) particles.push(createParticle());
+
+  let lastTime = performance.now();
+
+  function animate(now) {
+    const dt = now - lastTime;
+    lastTime = now;
+
+    const cx = width / 2 + (lastTouch.x - 0.5) * width * 0.2;
+    const cy = height / 2 + (lastTouch.y - 0.5) * height * 0.2;
+    const R = 30;
+    const scale = Math.min(width, height) * 0.55 / R;
+
+    // затухание энергии
+    clickerEnergy = Math.max(0, clickerEnergy - dt * 0.0004);
+    const energy = Math.max(0.1, clickerEnergy);
+
+    ctx.fillStyle = `rgba(12, 4, 24, ${0.22 + 0.3 * energy})`;
+    ctx.fillRect(0, 0, width, height);
+
+    for (let p of particles) {
+      p.t += p.speed * dt;
+      if (p.t > Math.PI * 2) p.t -= Math.PI * 2;
+
+      p.life += 0.0006 * dt;
+      if (p.life > 1) {
+        Object.assign(p, createParticle());
+      }
+
+      const base = heartPointBase(p.t, scale, cx, cy);
+
+      const depth = 0.3 + 0.7 * Math.abs(Math.sin(p.t * 2));
+      const radius = p.size * (0.5 + energy) * depth;
+      const alpha = (1 - p.life) * (0.25 + 0.6 * energy) * depth;
+
+      const r = 255;
+      const g = 215;
+      const b = 0;
+
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
+      ctx.arc(base.x, base.y, radius, 0, Math.PI * 2);
       ctx.fill();
     }
 
