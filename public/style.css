@@ -26,6 +26,12 @@ canvas#heartwins {
   height: 100%;
   display: block;
   z-index: 0;
+  opacity: 0; /* появится после первого клика */
+  transition: opacity 0.9s ease-out;
+}
+
+body.bg-awake canvas#heartwins {
+  opacity: 1;
 }
 
 /* Водяной знак HEARTWINS */
@@ -63,8 +69,8 @@ canvas#heartwins {
   position: relative;
   z-index: 2;
   max-width: 1120px;
-  margin: 26px auto;
-  padding: 0 16px 24px;
+  margin: 0 auto;
+  padding: 16px 16px 24px;
 }
 
 /* Шапка */
@@ -133,10 +139,13 @@ canvas#heartwins {
   background: radial-gradient(circle at top, rgba(90,13,57,0.75), rgba(13,10,40,0.8));
 }
 
-/* Основной контейнер */
+/* Основной контейнер: центрируем панель по вертикали */
 
 .app-main {
-  margin-top: 14px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: calc(100vh - 110px);
 }
 
 /* Панель */
@@ -148,6 +157,8 @@ canvas#heartwins {
   border: 1px solid rgba(255, 255, 255, 0.18);
   box-shadow: 0 26px 65px rgba(0,0,0,.75);
   padding: 18px 18px 20px;
+  width: 100%;
+  max-width: 760px;
 }
 
 .muted {
@@ -210,13 +221,8 @@ canvas#heartwins {
 
 .main-grid {
   display: grid;
-  grid-template-columns: minmax(0,1.05fr) minmax(0,1.35fr);
+  grid-template-columns: 1fr;
   gap: 14px;
-}
-@media (max-width: 900px) {
-  .main-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 .column {
@@ -268,6 +274,10 @@ canvas#heartwins {
 
 /* Кликер */
 
+.core-card {
+  text-align: left;
+}
+
 .clicker {
   margin-top: 12px;
   position: relative;
@@ -288,9 +298,9 @@ canvas#heartwins {
 }
 
 .clicker-btn {
-  margin-top: 4px;
+  margin-top: 10px;
   width: 100%;
-  height: 110px;
+  height: 140px;
   border-radius: 999px;
   border: none;
   cursor: pointer;
@@ -473,8 +483,24 @@ canvas#heartwins {
   min-height: 18px;
 }
 
-/* Подпись про гостевой режим */
+/* Расширенная секция (колесо + викторина) — скрыта до 10 кармы */
+
+.advanced-wrapper {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(8px);
+  transition: opacity .4s ease-out, transform .4s ease-out;
+}
+
+.advanced-wrapper.visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+/* Подпись про режим */
 
 .dev-hint {
   margin-top: 10px;
+  text-align: right;
 }
