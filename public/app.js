@@ -6,6 +6,9 @@ let wheelSpinning = false;
 let currentQuiz = null;
 let quizAnswered = false;
 
+// "Энергия" для облака частиц
+window.hwEnergy = 0;
+
 const SUTRAS = [
   "Замечать свои автоматические реакции — уже первый шаг к свободе.",
   "Осознанность не отменяет боль. Она учит быть с ней честно.",
@@ -104,6 +107,7 @@ const quizStatusEl = document.getElementById("quizStatus");
 const newQuestionBtn = document.getElementById("newQuestionBtn");
 const logoutBtn = document.getElementById("logoutBtn");
 const platformLabel = document.getElementById("platformLabel");
+const advancedSection = document.getElementById("advancedSection");
 
 /* HELPERS */
 
@@ -136,6 +140,14 @@ async function api(path, opts = {}) {
   return data;
 }
 
+function maybeUnlockAdvanced() {
+  if (!currentUser || !advancedSection) return;
+  const karma = currentUser.karma ?? 0;
+  if (karma >= 10) {
+    advancedSection.classList.add("visible");
+  }
+}
+
 function updateUserUI() {
   if (!currentUser) return;
   let name = "гость";
@@ -158,6 +170,8 @@ function updateUserUI() {
   statKarma.textContent = currentUser.karma ?? 0;
   statAwareness.textContent = currentUser.awareness ?? 0;
   statQuiz.textContent = currentUser.quizCorrect ?? 0;
+
+  maybeUnlockAdvanced();
 }
 
 function spawnClickParticles(containerEl, count = 7) {
@@ -209,7 +223,7 @@ async function telegramAutoLogin() {
     setToken(data.token);
     currentUser = data.user;
     updateUserUI();
-    logoutBtn.style.display = "none"; // в телеге нет смысла сбрасывать
+    logoutBtn.style.display = "none";
     return true;
   } catch (e) {
     console.error("Ошибка Telegram логина", e);
@@ -270,98 +284,113 @@ async function guestAutoLogin() {
   updateUserUI();
 }
 
-logoutBtn.addEventListener("click", () => {
-  // Сброс только для standalone
-  localStorage.removeItem("hw_guest_id");
-  localStorage.removeItem("hw_guest_name");
-  setToken(null);
-  currentUser = null;
-  guestAutoLogin();
-});
+if (logoutBtn) {
+  logoutBtn.addEventListener("click", () => {
+    localStorage.removeItem("hw_guest_id");
+    localStorage.removeItem("hw_guest_name");
+    setToken(null);
+    currentUser = null;
+    guestAutoLogin();
+  });
+}
 
 /* INIT */
 
 (async function init() {
-  // 1) Telegram
-  if (await telegramAutoLogin()) return;
+  try {
+    // 1) Telegram Mini App
+    if (await telegramAutoLogin()) return;
 
-  // 2) VK
-  if (await vkAutoLogin()) return;
+    // 2) VK Mini App
+    if (await vkAutoLogin()) return;
 
-  // 3) Если есть сохранённый токен — используем
-  const savedToken = localStorage.getItem("hw_awareness_token");
-  if (savedToken) {
-    setToken(savedToken);
-    try {
-      const user = await api("/api/user/me");
-      currentUser = user;
-      updateUserUI();
-      if (user.telegramId || user.vkId) {
-        logoutBtn.style.display = "none";
-      } else {
-        logoutBtn.style.display = "inline-flex";
+    // 3) Если есть сохранённый токен — пробуем
+    const savedToken = localStorage.getItem("hw_awareness_token");
+    if (savedToken) {
+      setToken(savedToken);
+      try {
+        const user = await api("/api/user/me");
+        currentUser = user;
+        updateUserUI();
+        if (user.telegramId || user.vkId) {
+          logoutBtn.style.display = "none";
+        } else {
+          logoutBtn.style.display = "inline-flex";
+        }
+        return;
+      } catch (e) {
+        setToken(null);
       }
-      return;
-    } catch (e) {
-      setToken(null);
     }
-  }
 
-  // 4) Standalone guest
-  await guestAutoLogin();
+    // 4) Standalone guest
+    await guestAutoLogin();
+  } catch (e) {
+    console.error("init error", e);
+  }
 })();
 
 /* Кликер кармы */
 
-karmaClickBtn.addEventListener("click", async () => {
-  if (!currentUser) return;
-  try {
-    const data = await api("/api/actions/karma-click", { method: "POST" });
-    currentUser.karma = data.karma;
-    updateUserUI();
+if (karmaClickBtn) {
+  karmaClickBtn.addEventListener("click", async () => {
+    if (!currentUser) return;
+    try {
+      const data = await api("/api/actions/karma-click", { method: "POST" });
+      currentUser.karma = data.karma;
+      updateUserUI();
 
-    karmaClickBtn.style.transform = "scale(0.97)";
-    setTimeout(() => {
-      karmaClickBtn.style.transform = "";
-    }, 80);
+      // оживляем фон
+      window.hwEnergy = Math.min(1, (window.hwEnergy || 0) + 0.08);
+      document.body.classList.add("bg-awake");
 
-    const container = karmaClickBtn.closest(".panel-card") || karmaClickBtn.parentElement;
-    spawnClickParticles(container, 7);
-  } catch (e) {
-    console.error(e);
-  }
-});
+      karmaClickBtn.style.transform = "scale(0.97)";
+      setTimeout(() => {
+        karmaClickBtn.style.transform = "";
+      }, 80);
+
+      const container = karmaClickBtn.closest(".panel-card") || karmaClickBtn.parentElement;
+      spawnClickParticles(container, 7);
+    } catch (e) {
+      console.error(e);
+    }
+  });
+}
 
 /* Колесо */
 
-spinBtn.addEventListener("click", async () => {
-  if (!currentUser || wheelSpinning) return;
-  wheelSpinning = true;
-  wheelResultEl.textContent = "Колесо крутится...";
+if (spinBtn) {
+  spinBtn.addEventListener("click", async () => {
+    if (!currentUser || wheelSpinning) return;
+    wheelSpinning = true;
+    wheelResultEl.textContent = "Колесо крутится...";
 
-  const extraTurns = Math.floor(Math.random() * 3) + 2;
-  const finalDeg = extraTurns * 360 + Math.floor(Math.random() * 360);
-  wheelVisual.style.transform = `rotate(${finalDeg}deg)`;
+    const extraTurns = Math.floor(Math.random() * 3) + 2;
+    const finalDeg = extraTurns * 360 + Math.floor(Math.random() * 360);
+    if (wheelVisual) {
+      wheelVisual.style.transform = `rotate(${finalDeg}deg)`;
+    }
 
-  try {
-    const data = await api("/api/actions/wheel-spin", { method: "POST" });
-    setTimeout(() => {
-      currentUser.karma = data.user.karma;
-      currentUser.awareness = data.user.awareness;
-      currentUser.quizCorrect = data.user.quizCorrect;
-      updateUserUI();
+    try {
+      const data = await api("/api/actions/wheel-spin", { method: "POST" });
+      setTimeout(() => {
+        currentUser.karma = data.user.karma;
+        currentUser.awareness = data.user.awareness;
+        currentUser.quizCorrect = data.user.quizCorrect;
+        updateUserUI();
 
-      wheelResultEl.textContent = data.message || "Спин завершён.";
-      const sutra = SUTRAS[Math.floor(Math.random() * SUTRAS.length)];
-      sutraBox.textContent = sutra;
+        wheelResultEl.textContent = data.message || "Спин завершён.";
+        const sutra = SUTRAS[Math.floor(Math.random() * SUTRAS.length)];
+        sutraBox.textContent = sutra;
 
+        wheelSpinning = false;
+      }, 900);
+    } catch (e) {
       wheelSpinning = false;
-    }, 900);
-  } catch (e) {
-    wheelSpinning = false;
-    wheelResultEl.textContent = e.message || "Ошибка спина";
-  }
-});
+      wheelResultEl.textContent = e.message || "Ошибка спина";
+    }
+  });
+}
 
 /* Викторина */
 
@@ -409,16 +438,19 @@ function renderQuiz(questionObj) {
   });
 }
 
-newQuestionBtn.addEventListener("click", () => {
-  const q = QUIZ_QUESTIONS[Math.floor(Math.random() * QUIZ_QUESTIONS.length)];
-  currentQuiz = q;
-  renderQuiz(q);
-});
+if (newQuestionBtn) {
+  newQuestionBtn.addEventListener("click", () => {
+    const q = QUIZ_QUESTIONS[Math.floor(Math.random() * QUIZ_QUESTIONS.length)];
+    currentQuiz = q;
+    renderQuiz(q);
+  });
+}
 
-/* Фон — облако точек / сердец */
+/* Фон — облако точек / сердец, чувствительное к hwEnergy */
 
 (function () {
   const canvas = document.getElementById("heartwins");
+  if (!canvas) return;
   const ctx = canvas.getContext("2d");
 
   let width = window.innerWidth;
@@ -507,6 +539,8 @@ newQuestionBtn.addEventListener("click", () => {
     const angularSpeedY = MAX_ANGULAR_SPEED_Y * speedFactor;
     const angularSpeedX = MAX_ANGULAR_SPEED_X * speedFactor;
 
+    const energy = Math.max(0, Math.min(1, window.hwEnergy || 0));
+
     let trailAlpha;
     if (phase <= 0.5) {
       const u = phase / 0.5;
@@ -515,11 +549,13 @@ newQuestionBtn.addEventListener("click", () => {
       const u = (phase - 0.5) / 0.5;
       trailAlpha = 0.008 + (0.8 - 0.008) * u;
     }
+    trailAlpha *= 0.3 + 0.7 * energy;
 
     ctx.fillStyle = `rgba(0,0,0,${trailAlpha})`;
     ctx.fillRect(0, 0, width, height);
 
     let dustFactor = phase <= 0.5 ? 1 : 1 - 0.8 * ((phase - 0.5) / 0.5);
+    dustFactor *= 0.2 + 0.8 * energy;
 
     angleY += angularSpeedY * dt;
     angleX += angularSpeedX * dt;
