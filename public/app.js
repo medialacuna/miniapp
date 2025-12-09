@@ -6,10 +6,11 @@ let wheelSpinning = false;
 let currentQuiz = null;
 let quizAnswered = false;
 
-// "Энергия" для фонового облака
+// энергия для фонового узла
 window.hwEnergy = 0;
-// "Энергия" для облака в кликере
+// энергия для узла внутри кнопки
 let clickerEnergy = 0;
+// последний touch внутри кнопки (0..1)
 let lastTouch = { x: 0.5, y: 0.5 };
 
 const SUTRAS = [
@@ -112,6 +113,7 @@ const logoutBtn = document.getElementById("logoutBtn");
 const platformLabel = document.getElementById("platformLabel");
 const advancedSection = document.getElementById("advancedSection");
 const clickerCanvas = document.getElementById("clickerCanvas");
+const logoCanvas = document.getElementById("logoCanvas");
 
 /* HELPERS */
 
@@ -227,7 +229,7 @@ async function telegramAutoLogin() {
     setToken(data.token);
     currentUser = data.user;
     updateUserUI();
-    logoutBtn.style.display = "none";
+    if (logoutBtn) logoutBtn.style.display = "none";
     return true;
   } catch (e) {
     console.error("Ошибка Telegram логина", e);
@@ -258,7 +260,7 @@ async function vkAutoLogin() {
     setToken(data.token);
     currentUser = data.user;
     updateUserUI();
-    logoutBtn.style.display = "none";
+    if (logoutBtn) logoutBtn.style.display = "none";
     return true;
   } catch (e) {
     console.error("Ошибка VK логина", e);
@@ -269,7 +271,7 @@ async function vkAutoLogin() {
 // Standalone guest
 async function guestAutoLogin() {
   platformLabel.textContent = "standalone";
-  logoutBtn.style.display = "inline-flex";
+  if (logoutBtn) logoutBtn.style.display = "inline-flex";
 
   let guestId = localStorage.getItem("hw_guest_id");
   if (!guestId) {
@@ -289,7 +291,6 @@ async function guestAutoLogin() {
     updateUserUI();
   } catch (e) {
     console.error("guest auth failed, using local user only", e);
-    // локальный пользователь, если бэкенд вдруг недоступен
     currentUser = {
       id: guestId,
       guestId,
@@ -316,13 +317,9 @@ if (logoutBtn) {
 
 (async function init() {
   try {
-    // 1) Telegram Mini App
     if (await telegramAutoLogin()) return;
-
-    // 2) VK Mini App
     if (await vkAutoLogin()) return;
 
-    // 3) Если есть сохранённый токен — пробуем
     const savedToken = localStorage.getItem("hw_awareness_token");
     if (savedToken) {
       setToken(savedToken);
@@ -331,9 +328,9 @@ if (logoutBtn) {
         currentUser = user;
         updateUserUI();
         if (user.telegramId || user.vkId) {
-          logoutBtn.style.display = "none";
+          if (logoutBtn) logoutBtn.style.display = "none";
         } else {
-          logoutBtn.style.display = "inline-flex";
+          if (logoutBtn) logoutBtn.style.display = "inline-flex";
         }
         return;
       } catch (e) {
@@ -341,7 +338,6 @@ if (logoutBtn) {
       }
     }
 
-    // 4) Standalone guest
     await guestAutoLogin();
   } catch (e) {
     console.error("init error", e);
@@ -353,17 +349,31 @@ if (logoutBtn) {
 if (karmaClickBtn) {
   const clickerContainer = karmaClickBtn.closest(".panel-card") || karmaClickBtn.parentElement;
 
-  karmaClickBtn.addEventListener("click", async (ev) => {
-    if (!currentUser) {
-      // если по какой-то причине ещё не успели авторизоваться
-      return;
-    }
-
-    // координаты внутри кнопки (0..1)
+  function registerTouch(ev) {
     const rect = karmaClickBtn.getBoundingClientRect();
-    const x = (ev.clientX - rect.left) / rect.width;
-    const y = (ev.clientY - rect.top) / rect.height;
-    lastTouch = { x, y };
+    let clientX, clientY;
+    if (ev.touches && ev.touches[0]) {
+      clientX = ev.touches[0].clientX;
+      clientY = ev.touches[0].clientY;
+    } else {
+      clientX = ev.clientX;
+      clientY = ev.clientY;
+    }
+    const x = (clientX - rect.left) / rect.width;
+    const y = (clientY - rect.top) / rect.height;
+    lastTouch = {
+      x: Math.max(0, Math.min(1, x)),
+      y: Math.max(0, Math.min(1, y))
+    };
+  }
+
+  karmaClickBtn.addEventListener("mousedown", registerTouch);
+  karmaClickBtn.addEventListener("touchstart", registerTouch);
+
+  karmaClickBtn.addEventListener("click", async (ev) => {
+    if (!currentUser) return;
+
+    registerTouch(ev);
 
     try {
       const data = await api("/api/actions/karma-click", { method: "POST" });
@@ -373,11 +383,9 @@ if (karmaClickBtn) {
       console.error(e);
     }
 
-    // оживляем фон
     window.hwEnergy = Math.min(1, (window.hwEnergy || 0) + 0.08);
     document.body.classList.add("bg-awake");
 
-    // энергия кликера
     clickerEnergy = Math.min(1, clickerEnergy + 0.2);
 
     karmaClickBtn.style.transform = "scale(0.97)";
@@ -394,7 +402,6 @@ if (karmaClickBtn) {
 if (spinBtn) {
   spinBtn.addEventListener("click", async () => {
     if (!currentUser || wheelSpinning) return;
-    // не даём крутить колесо до 10 кармы
     if ((currentUser.karma ?? 0) < 10) {
       wheelResultEl.textContent = "Сначала набери немного кармы кликером.";
       return;
@@ -489,7 +496,21 @@ if (newQuestionBtn) {
   });
 }
 
-/* Фон — облако точек / сердец, чувствительное к hwEnergy */
+/* ОБЩАЯ ГЕОМЕТРИЯ УЗЛА (примерно в форме твоего золотого узла) */
+
+function knotPoint(t, scale, cx, cy) {
+  // модифицированная лемниската / “∞-узел”,
+  // не идеальная копия, но похожий силуэт
+  const a = 1;
+  const x = (Math.cos(t) * (2 + Math.cos(2 * t))) / 3;
+  const y = (Math.sin(t) * (2 - Math.cos(2 * t))) / 3;
+  return {
+    x: x * scale + cx,
+    y: y * scale + cy
+  };
+}
+
+/* Фоновый узел */
 
 (function () {
   const canvas = document.getElementById("heartwins");
@@ -509,102 +530,36 @@ if (newQuestionBtn) {
   resize();
   window.addEventListener("resize", resize);
 
-  function heartPointBase(t, scale, cx, cy) {
-    let x = 16 * Math.pow(Math.sin(t), 3);
-    let y = 13 * Math.cos(t)
-          - 5 * Math.cos(2 * t)
-          - 2 * Math.cos(3 * t)
-          - Math.cos(4 * t);
-    return {
-      x: x * scale + cx,
-      y: -y * scale + cy
-    };
-  }
-
-  function heartPointDouble(t, scale, cx, cy, branch) {
-    const p = heartPointBase(t, scale, cx, cy);
-    if (branch === 0) return p;
-    const reflectedY = 2 * cy - p.y;
-    return { x: p.x, y: reflectedY + 12 * scale };
-  }
-
   const particles = [];
-  const PARTICLE_COUNT = 350;
+  const COUNT = 380;
 
   function createParticle() {
     return {
       t: Math.random() * Math.PI * 2,
-      speed: 0.00007 + Math.random() * 0.00015,
-      branch: Math.random() < 0.5 ? 0 : 1,
-      size: 0.25 + Math.random() * 0.45,
+      speed: 0.00005 + Math.random() * 0.00012,
+      size: 0.3 + Math.random() * 0.6,
       life: Math.random(),
-      offsetX: (Math.random() - 0.5) * 0.8,
-      offsetY: (Math.random() - 0.5) * 0.8,
       prevX: null,
       prevY: null
     };
   }
 
-  for (let i = 0; i < PARTICLE_COUNT; i++) particles.push(createParticle());
+  for (let i = 0; i < COUNT; i++) particles.push(createParticle());
 
   let lastTime = performance.now();
-  let startTime = lastTime;
-
-  const CYCLE_DURATION = 120000;
-  const MAX_ANGULAR_SPEED_Y = 0.008;
-  const MAX_ANGULAR_SPEED_X = 0.006;
-  const MIN_SPEED_START = 0.4;
-  const MIN_SPEED_END   = 0.02;
-
-  let angleY = 0;
-  let angleX = 0;
 
   function animate(now) {
     const dt = now - lastTime;
     lastTime = now;
+
     const cx = width / 2;
     const cy = height / 2;
-
-    const R = 30;
-    const scale = Math.min(width, height) * 0.9 / (2 * R);
-    const Rpx = R * scale;
-
-    const elapsed = (now - startTime) % CYCLE_DURATION;
-    const phase = elapsed / CYCLE_DURATION;
-
-    let speedFactor;
-    if (phase <= 0.5) {
-      speedFactor = MIN_SPEED_START + (1 - MIN_SPEED_START) * (phase / 0.5);
-    } else {
-      speedFactor = 1 - (1 - MIN_SPEED_END) * ((phase - 0.5) / 0.5);
-    }
-
-    const angularSpeedY = MAX_ANGULAR_SPEED_Y * speedFactor;
-    const angularSpeedX = MAX_ANGULAR_SPEED_X * speedFactor;
+    const scale = Math.min(width, height) * 0.35;
 
     const energy = Math.max(0, Math.min(1, window.hwEnergy || 0));
 
-    let trailAlpha;
-    if (phase <= 0.5) {
-      const u = phase / 0.5;
-      trailAlpha = 0.018 - 0.01 * u;
-    } else {
-      const u = (phase - 0.5) / 0.5;
-      trailAlpha = 0.008 + (0.8 - 0.008) * u;
-    }
-    trailAlpha *= 0.3 + 0.7 * energy;
-
-    ctx.fillStyle = `rgba(0,0,0,${trailAlpha})`;
+    ctx.fillStyle = `rgba(0,0,0,${0.16 + 0.3 * energy})`;
     ctx.fillRect(0, 0, width, height);
-
-    let dustFactor = phase <= 0.5 ? 1 : 1 - 0.8 * ((phase - 0.5) / 0.5);
-    dustFactor *= 0.2 + 0.8 * energy;
-
-    angleY += angularSpeedY * dt;
-    angleX += angularSpeedX * dt;
-
-    const cosY = Math.cos(angleY), sinY = Math.sin(angleY);
-    const cosX = Math.cos(angleX), sinX = Math.sin(angleX);
 
     for (let p of particles) {
       p.t += p.speed * dt;
@@ -613,53 +568,31 @@ if (newQuestionBtn) {
       p.life += 0.0004 * dt;
       if (p.life > 1) Object.assign(p, createParticle());
 
-      const base = heartPointDouble(p.t, scale, cx, cy, p.branch);
-      let dx = (base.x + p.offsetX * scale) - cx;
-      let dy = (base.y + p.offsetY * scale) - cy;
-      let dz = 0;
+      const base = knotPoint(p.t, scale, cx, cy);
 
-      let x1 = dx * cosY + dz * sinY;
-      let z1 = -dx * sinY + dz * cosY;
+      const depth = 0.4 + 0.6 * Math.abs(Math.sin(p.t * 2));
+      const radius = p.size * (0.6 + energy) * depth;
+      const alpha = (1 - p.life) * (0.25 + 0.55 * energy) * depth;
 
-      let y2 = dy * cosX - z1 * sinX;
-      let z2 = dy * sinX + z1 * cosX;
-
-      let depth = (z2 + Rpx) / (2 * Rpx);
-      depth = Math.max(0, Math.min(1, depth));
-
-      const persp = 0.7 + 0.6 * depth;
-      const sizeDepth = 0.5 + 0.9 * depth;
-      const alphaDepth = 0.2 + 0.8 * depth;
-
-      const xF = cx + x1 * persp;
-      const yF = cy + y2 * persp;
-
-      let r,g,b;
-      if (p.branch === 0) {
-        r = 255; g = 215; b = 0;
-      } else {
-        r = 255; g = 150; b = 180;
-      }
+      const r = 255;
+      const g = 215;
+      const b = 0;
 
       if (p.prevX != null) {
         ctx.beginPath();
-        const tailA = 0.25 * alphaDepth * dustFactor;
-        ctx.strokeStyle = `rgba(${r},${g},${b},${tailA})`;
-        ctx.lineWidth = p.size * 2 * sizeDepth * dustFactor;
+        ctx.strokeStyle = `rgba(${r},${g},${b},${alpha * 0.5})`;
+        ctx.lineWidth = radius * 0.7;
         ctx.moveTo(p.prevX, p.prevY);
-        ctx.lineTo(xF, yF);
+        ctx.lineTo(base.x, base.y);
         ctx.stroke();
       }
 
-      p.prevX = xF;
-      p.prevY = yF;
-
-      const alpha = (1 - p.life) * 0.9 * dustFactor * alphaDepth;
-      const radius = p.size * sizeDepth * dustFactor;
+      p.prevX = base.x;
+      p.prevY = base.y;
 
       ctx.beginPath();
       ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
-      ctx.arc(xF, yF, radius, 0, Math.PI * 2);
+      ctx.arc(base.x, base.y, radius, 0, Math.PI * 2);
       ctx.fill();
     }
 
@@ -669,7 +602,7 @@ if (newQuestionBtn) {
   requestAnimationFrame(animate);
 })();
 
-/* Облако точек прямо внутри кнопки кликера */
+/* Узел внутри кнопки (реагирует на касание) */
 
 (function () {
   if (!clickerCanvas) return;
@@ -689,18 +622,6 @@ if (newQuestionBtn) {
   resize();
   window.addEventListener("resize", resize);
 
-  function heartPointBase(t, scale, cx, cy) {
-    let x = 16 * Math.pow(Math.sin(t), 3);
-    let y = 13 * Math.cos(t)
-          - 5 * Math.cos(2 * t)
-          - 2 * Math.cos(3 * t)
-          - Math.cos(4 * t);
-    return {
-      x: x * scale + cx,
-      y: -y * scale + cy
-    };
-  }
-
   const particles = [];
   const COUNT = 260;
 
@@ -712,7 +633,6 @@ if (newQuestionBtn) {
       life: Math.random()
     };
   }
-
   for (let i = 0; i < COUNT; i++) particles.push(createParticle());
 
   let lastTime = performance.now();
@@ -721,16 +641,14 @@ if (newQuestionBtn) {
     const dt = now - lastTime;
     lastTime = now;
 
-    const cx = width / 2 + (lastTouch.x - 0.5) * width * 0.2;
-    const cy = height / 2 + (lastTouch.y - 0.5) * height * 0.2;
-    const R = 30;
-    const scale = Math.min(width, height) * 0.55 / R;
+    const cx = width * (0.5 + (lastTouch.x - 0.5) * 0.2);
+    const cy = height * (0.5 + (lastTouch.y - 0.5) * 0.2);
+    const scale = Math.min(width, height) * 0.45;
 
-    // затухание энергии
     clickerEnergy = Math.max(0, clickerEnergy - dt * 0.0004);
     const energy = Math.max(0.1, clickerEnergy);
 
-    ctx.fillStyle = `rgba(12, 4, 24, ${0.22 + 0.3 * energy})`;
+    ctx.fillStyle = `rgba(12, 4, 24, ${0.22 + 0.4 * energy})`;
     ctx.fillRect(0, 0, width, height);
 
     for (let p of particles) {
@@ -738,15 +656,85 @@ if (newQuestionBtn) {
       if (p.t > Math.PI * 2) p.t -= Math.PI * 2;
 
       p.life += 0.0006 * dt;
-      if (p.life > 1) {
-        Object.assign(p, createParticle());
-      }
+      if (p.life > 1) Object.assign(p, createParticle());
 
-      const base = heartPointBase(p.t, scale, cx, cy);
+      const base = knotPoint(p.t, scale, cx, cy);
 
       const depth = 0.3 + 0.7 * Math.abs(Math.sin(p.t * 2));
       const radius = p.size * (0.5 + energy) * depth;
       const alpha = (1 - p.life) * (0.25 + 0.6 * energy) * depth;
+
+      const r = 255;
+      const g = 215;
+      const b = 0;
+
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
+      ctx.arc(base.x, base.y, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    requestAnimationFrame(animate);
+  }
+
+  requestAnimationFrame(animate);
+})();
+
+/* Маленький узел в логотипе */
+
+(function () {
+  if (!logoCanvas) return;
+  const ctx = logoCanvas.getContext("2d");
+
+  let size = 0;
+
+  function resize() {
+    const rect = logoCanvas.getBoundingClientRect();
+    size = Math.min(rect.width || 32, rect.height || 32);
+    logoCanvas.width = size * window.devicePixelRatio;
+    logoCanvas.height = size * window.devicePixelRatio;
+    ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
+  }
+  resize();
+  window.addEventListener("resize", resize);
+
+  const particles = [];
+  const COUNT = 120;
+
+  function createParticle() {
+    return {
+      t: Math.random() * Math.PI * 2,
+      speed: 0.0002 + Math.random() * 0.00035,
+      size: 0.25 + Math.random() * 0.4,
+      life: Math.random()
+    };
+  }
+  for (let i = 0; i < COUNT; i++) particles.push(createParticle());
+
+  let lastTime = performance.now();
+
+  function animate(now) {
+    const dt = now - lastTime;
+    lastTime = now;
+
+    const cx = size / 2;
+    const cy = size / 2;
+    const scale = size * 0.32;
+
+    ctx.clearRect(0, 0, size, size);
+
+    for (let p of particles) {
+      p.t += p.speed * dt;
+      if (p.t > Math.PI * 2) p.t -= Math.PI * 2;
+
+      p.life += 0.0007 * dt;
+      if (p.life > 1) Object.assign(p, createParticle());
+
+      const base = knotPoint(p.t, scale, cx, cy);
+
+      const depth = 0.4 + 0.6 * Math.abs(Math.sin(p.t * 2));
+      const radius = p.size * depth;
+      const alpha = (1 - p.life) * 0.85 * depth;
 
       const r = 255;
       const g = 215;
