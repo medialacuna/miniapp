@@ -21,7 +21,8 @@
   <header class="app-header">
     <div class="brand">
       <div class="brand-logo">
-        <span>❤</span>
+        <!-- сюда положи свой файл с золотым узлом -->
+        <img src="heartwins-knot.png" alt="HeartWins logo">
       </div>
       <div class="brand-text">
         <div class="brand-title">HeartWins</div>
@@ -70,7 +71,10 @@
                 </div>
               </div>
               <button id="karmaClickBtn" class="clicker-btn">
-                👆 Коснуться<br><span>+1 карма</span>
+                <canvas id="clickerCanvas"></canvas>
+                <div class="clicker-label-inner">
+                  👆 Коснуться<br><span>+1 карма</span>
+                </div>
               </button>
             </div>
           </div>
